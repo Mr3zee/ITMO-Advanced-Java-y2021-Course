@@ -4,3 +4,5 @@
 **/sample
 *.jar
 *.class
+*.cmd
+**/__Test__Walk__
