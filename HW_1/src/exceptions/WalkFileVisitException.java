@@ -2,7 +2,7 @@ package exceptions;
 
 public class WalkFileVisitException extends WalkException {
     @Override
-    protected String getTypeFormat() {
-        return "while visiting file \"%s\"";
+    protected String getFilesFormat() {
+        return "while visiting file(s) in directory (dir is the first one) \"%s\"";
     }
 }

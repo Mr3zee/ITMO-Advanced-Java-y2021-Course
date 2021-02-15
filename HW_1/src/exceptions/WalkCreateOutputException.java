@@ -2,7 +2,7 @@ package exceptions;
 
 public class WalkCreateOutputException extends WalkException {
     @Override
-    protected String getTypeFormat() {
-        return "while creating output file/directories to file \"%s\"";
+    protected String getFilesFormat() {
+        return "while creating output file(s) (directory(s)): \"%s\"";
     }
 }
