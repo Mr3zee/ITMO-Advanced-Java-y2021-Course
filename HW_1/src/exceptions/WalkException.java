@@ -2,26 +2,25 @@ package exceptions;
 
 import java.io.PrintStream;
 import java.lang.reflect.InvocationTargetException;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
 public class WalkException extends Exception {
-    private Path[] files;
+    private String[] files;
     private String name;
     private String message;
 
     protected WalkException() {
     }
 
-    WalkException init(String name, String message, Path ...files) {
+    WalkException init(String name, String message, String ...files) {
         this.files = files;
         this.name = name;
         this.message = message;
         return this;
     }
 
-    public static <T extends WalkException> T create(Class<T> clazz, String name, String message, Path... files) {
+    public static <T extends WalkException> T create(Class<T> clazz, String name, String message, String... files) {
         try {
             return (T) clazz.getDeclaredConstructor().newInstance().init(name, message, files);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
@@ -30,8 +29,8 @@ public class WalkException extends Exception {
         }
     }
 
-    public static <T extends WalkException> T create(Class<T> clazz, Exception exc, Path... files) {
-        return create(clazz, exc.getClass().getSimpleName(), exc.getMessage(), files);
+    public static <T extends WalkException> T create(Class<T> clazz, Exception exc, String... files) {
+        return create(clazz, exc.getClass().getSimpleName(), exc.getMessage(), Arrays.stream(files).toString());
     }
 
     @Override
@@ -57,7 +56,7 @@ public class WalkException extends Exception {
     }
 
     public void print() {
-        print(System.out);
+        print(System.err);
     }
 
     public void print(PrintStream out) {
