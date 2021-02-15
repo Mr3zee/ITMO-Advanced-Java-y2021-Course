@@ -13,7 +13,7 @@ public class WalkException extends Exception {
     protected WalkException() {
     }
 
-    WalkException init(String name, String message, String ...files) {
+    WalkException init(final String name, final String message, final String ...files) {
         this.files = files;
         this.name = name;
         this.message = message;
@@ -30,7 +30,7 @@ public class WalkException extends Exception {
     }
 
     public static <T extends WalkException> T create(Class<T> clazz, Exception exc, String... files) {
-        return create(clazz, exc.getClass().getSimpleName(), exc.getMessage(), Arrays.stream(files).toString());
+        return create(clazz, exc.getClass().getSimpleName(), exc.getMessage(), files);
     }
 
     @Override
@@ -59,7 +59,7 @@ public class WalkException extends Exception {
         print(System.err);
     }
 
-    public void print(PrintStream out) {
+    public void print(final PrintStream out) {
         out.print(getMessage());
     }
 }

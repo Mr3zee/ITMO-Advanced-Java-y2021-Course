@@ -9,7 +9,7 @@ import java.util.stream.Stream;
 
 public class Process {
 
-    public static void safeStart(String[] args, boolean withDirs) {
+    public static void safeStart(final String[] args, final boolean withDirs) {
         try {
             start(args, withDirs);
         } catch (WalkException e) {
@@ -17,7 +17,7 @@ public class Process {
         }
     }
 
-    public static void start(String[] args, boolean withDirs) throws WalkException {
+    public static void start(final String[] args, final boolean withDirs) throws WalkException {
         try {
             if (args == null) {
                 throw new IllegalArgumentException("args can not be null");
@@ -32,7 +32,7 @@ public class Process {
             throw WalkException.create(WalkException.class, e);
         }
 
-        Path out, in;
+        final Path out, in;
 
         try {
             out = Path.of(args[1]);
@@ -45,12 +45,12 @@ public class Process {
 
         try (Stream<String> lines = Files.lines(in, StandardCharsets.UTF_8)) {
             lines.forEach(line -> {
-                Path path;
+                final Path path;
                 try {
                     path = Path.of(line);
                 } catch (InvalidPathException e) {
                     writeError(line, out);
-                    WalkException.create(WalkFormatException.class, e);
+                    WalkException.create(WalkFormatException.class, e).print();
                     return;
                 }
                 if (Files.isDirectory(path)) {
@@ -68,7 +68,7 @@ public class Process {
         }
     }
 
-    private static void checkSameFile(Path in, Path out) throws WalkException {
+    private static void checkSameFile(final Path in, final Path out) throws WalkException {
         try {
             if (Files.exists(in) && Files.exists(out) && Files.isSameFile(in, out)) {
                 throw new IOException("input and output files can not be the same one");
@@ -78,7 +78,7 @@ public class Process {
         }
     }
 
-    private static void processDir(Path dir, Path out) {
+    private static void processDir(final Path dir, final Path out) {
         try {
             Files.walkFileTree(dir, new SimpleFileVisitor<>() {
                 @Override
@@ -99,34 +99,33 @@ public class Process {
         }
     }
 
-    private static void processFile(Path file, Path out) {
-        String outputString = prettyFormat(calcFileHash(file), file.toString());
+    private static void processFile(final Path file, final Path out) {
+        final String outputString = prettyFormat(calcFileHash(file), file.toString());
         writeln(outputString, out);
     }
 
-    private static void writeError(String string, Path out) {
+    private static void writeError(final String string, final Path out) {
         writeln(prettyFormat(0, string), out);
     }
 
-    private static void writeln(String string, Path out) {
+    private static void writeln(final String string, final Path out) {
         try {
-            write(string, out);
-            write("\n", out);
+            write(String.format("%s%n", string), out);
         } catch (IOException e) {
             WalkException.create(WalkWriteOutputException.class, e, out.toString()).print();
         }
     }
 
-    private static void write(String string, Path out) throws IOException {
+    private static void write(final String string, final Path out) throws IOException {
         Files.writeString(out, string, StandardCharsets.UTF_8, StandardOpenOption.APPEND);
     }
 
     private static final int bytesSize = 1024;
 
-    private static long calcFileHash(Path file) {
+    private static long calcFileHash(final Path file) {
         long hash = 0;
         try (InputStream stream = Files.newInputStream(file)) {
-            byte[] bytes = new byte[bytesSize];
+            final byte[] bytes = new byte[bytesSize];
             int bytesRead;
             while ((bytesRead = stream.readNBytes(bytes, 0, bytesSize)) > 0) {
                 hash = Hash.pjw(bytes, bytesRead, hash);
@@ -137,14 +136,14 @@ public class Process {
         return hash;
     }
 
-    private static String prettyFormat(long hash, String name) {
+    private static String prettyFormat(final long hash, final String name) {
         return String.format("%016x %s", hash, name);
     }
 
-    private static void initOutputFile(Path file) throws WalkException {
+    private static void initOutputFile(final Path file) throws WalkException {
         try {
             if (!Files.exists(file)) {
-                Path parent = file.getParent();
+                final Path parent = file.getParent();
                 if (parent == null) throw new IOException("File's parent do not exist");
                 if (!Files.exists(parent)) {
                     Files.createDirectories(parent);
