@@ -28,6 +28,7 @@ public class WalkException extends Exception {
             throw new IllegalArgumentException("Unable to create WalkException", e);
         }
     }
+    // TODO: 15.02.2021 maybe final
 
     public static <T extends WalkException> T create(Class<T> clazz, Exception exc, String... files) {
         return create(clazz, exc.getClass().getSimpleName(), exc.getMessage(), files);

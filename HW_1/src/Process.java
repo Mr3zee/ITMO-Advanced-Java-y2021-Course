@@ -119,6 +119,7 @@ public class Process {
     private static void write(final String string, final Path out) throws IOException {
         Files.writeString(out, string, StandardCharsets.UTF_8, StandardOpenOption.APPEND);
     }
+    // TODO: 15.02.2021 make buffered
 
     private static final int bytesSize = 1024;
 
