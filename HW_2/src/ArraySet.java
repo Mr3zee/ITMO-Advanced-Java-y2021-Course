@@ -2,12 +2,13 @@ import java.util.*;
 
 
 public class ArraySet<T> implements NavigableSet<T> {
-    private final TreeSet<T> array;
+    private final NavigableSet<T> array;
     private final Comparator<? super T> comparator;
 
     public ArraySet(final Collection<? extends T> array, final Comparator<? super T> comparator) {
-        this.array = new TreeSet<>(comparator);
-        this.array.addAll(array);
+        TreeSet<T> treeSet = new TreeSet<>(comparator);
+        treeSet.addAll(array);
+        this.array = Collections.unmodifiableNavigableSet(treeSet);
         this.comparator = comparator;
     }
 
@@ -50,12 +51,12 @@ public class ArraySet<T> implements NavigableSet<T> {
 
     @Override
     public T pollFirst() {
-        return this.array.pollFirst();
+        throw new ArraySetUOException("pollFirst");
     }
 
     @Override
     public T pollLast() {
-        return this.array.pollLast();
+        throw new ArraySetUOException("pollLast");
     }
 
     @Override
