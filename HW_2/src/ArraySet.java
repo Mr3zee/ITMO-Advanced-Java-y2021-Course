@@ -1,14 +1,17 @@
+import exceptions.ASNoSuchElementException;
+import exceptions.ASUnsupportedOperationException;
+
 import java.util.*;
 
 
 public class ArraySet<T> implements NavigableSet<T> {
-    private final NavigableSet<T> array;
+    private final ArrayList<T> array;
     private final Comparator<? super T> comparator;
 
     public ArraySet(final Collection<? extends T> array, final Comparator<? super T> comparator) {
         TreeSet<T> treeSet = new TreeSet<>(comparator);
         treeSet.addAll(array);
-        this.array = Collections.unmodifiableNavigableSet(treeSet);
+        this.array = new ArrayList<>(treeSet);
         this.comparator = comparator;
     }
 
@@ -31,151 +34,159 @@ public class ArraySet<T> implements NavigableSet<T> {
 
     @Override
     public T lower(T t) {
-        return this.array.lower(t);
+        return null;
     }
 
     @Override
     public T floor(T t) {
-        return this.array.floor(t);
+        return null;
     }
 
     @Override
     public T ceiling(T t) {
-        return this.array.ceiling(t);
+        return null;
     }
 
     @Override
     public T higher(T t) {
-        return this.array.higher(t);
+        return null;
     }
 
     @Override
     public T pollFirst() {
-        throw new ArraySetUOException("pollFirst");
+        throw new ASUnsupportedOperationException("pollFirst");
     }
 
     @Override
     public T pollLast() {
-        throw new ArraySetUOException("pollLast");
+        throw new ASUnsupportedOperationException("pollLast");
     }
 
     @Override
     public int size() {
-        return this.array.size();
+        return array.size();
     }
 
     @Override
     public boolean isEmpty() {
-        return this.array.isEmpty();
+        return array.isEmpty();
     }
 
     @Override
     public boolean contains(Object o) {
-        return this.array.contains(o);
+        return false;
     }
 
     @Override
     public Iterator<T> iterator() {
-        return this.array.iterator();
+        return Collections.unmodifiableList(array).iterator();
     }
 
     @Override
     public Object[] toArray() {
-        return this.array.toArray();
+        return array.toArray();
     }
 
     @Override
     public <T1> T1[] toArray(T1[] a) {
-        return this.array.toArray(a);
+        return array.toArray(a);
     }
 
     @Override
     public boolean add(T t) {
-        throw new ArraySetUOException("add");
+        throw new ASUnsupportedOperationException("add");
     }
 
     @Override
     public boolean remove(Object o) {
-        throw new ArraySetUOException("remove");
+        throw new ASUnsupportedOperationException("remove");
     }
 
     @Override
     public boolean containsAll(Collection<?> c) {
-        return this.array.containsAll(c);
+        return c.stream().map(this::contains).reduce(true, (acc, a) -> acc | a);
     }
 
     @Override
     public boolean addAll(Collection<? extends T> c) {
-        throw new ArraySetUOException("addAll");
+        throw new ASUnsupportedOperationException("addAll");
     }
 
     @Override
     public boolean retainAll(Collection<?> c) {
-        throw new ArraySetUOException("retainAll");
+        throw new ASUnsupportedOperationException("retainAll");
     }
 
     @Override
     public boolean removeAll(Collection<?> c) {
-        throw new ArraySetUOException("removeAll");
+        throw new ASUnsupportedOperationException("removeAll");
     }
 
     @Override
     public void clear() {
-        throw new ArraySetUOException("clear");
+        throw new ASUnsupportedOperationException("clear");
     }
 
     @Override
     public NavigableSet<T> descendingSet() {
-        return this.array.descendingSet();
+        return new ArraySet<>(new ArrayList<>(array), Collections.reverseOrder(comparator));
     }
 
     @Override
     public Iterator<T> descendingIterator() {
-        return this.array.descendingIterator();
+        return descendingSet().iterator();
     }
 
     @Override
     public NavigableSet<T> subSet(T fromElement, boolean fromInclusive, T toElement, boolean toInclusive) {
-        return this.array.subSet(fromElement, fromInclusive, toElement, toInclusive);
+        return null;
     }
 
     @Override
     public NavigableSet<T> headSet(T toElement, boolean inclusive) {
-        return this.array.headSet(toElement, inclusive);
+        return null;
     }
 
     @Override
     public NavigableSet<T> tailSet(T fromElement, boolean inclusive) {
-        return this.array.tailSet(fromElement, inclusive);
+        return null;
     }
 
     @Override
     public Comparator<? super T> comparator() {
-        return this.comparator;
+        return comparator;
     }
 
     @Override
     public SortedSet<T> subSet(T fromElement, T toElement) {
-        return this.array.subSet(fromElement, toElement);
+        return null;
     }
 
     @Override
     public SortedSet<T> headSet(T toElement) {
-        return this.array.headSet(toElement);
+        return null;
     }
 
     @Override
     public SortedSet<T> tailSet(T fromElement) {
-        return this.array.tailSet(fromElement);
+        return null;
     }
 
     @Override
     public T first() {
-        return this.array.first();
+        checkIsEmpty();
+        return array.get(0);
     }
 
     @Override
     public T last() {
-        return this.array.last();
+        checkIsEmpty();
+        return array.get(size() - 1);
+    }
+
+    private void checkIsEmpty() {
+        if (isEmpty()) {
+            throw new ASNoSuchElementException();
+        }
     }
 }

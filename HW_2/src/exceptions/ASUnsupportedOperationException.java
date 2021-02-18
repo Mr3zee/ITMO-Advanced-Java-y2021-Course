@@ -1,5 +1,7 @@
-public class ArraySetUOException extends UnsupportedOperationException {
-    public ArraySetUOException(String message) {
+package exceptions;
+
+public class ASUnsupportedOperationException extends UnsupportedOperationException {
+    public ASUnsupportedOperationException(String message) {
         super(message);
     }
 
