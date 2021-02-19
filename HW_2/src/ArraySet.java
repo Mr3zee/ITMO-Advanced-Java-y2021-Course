@@ -32,24 +32,34 @@ public class ArraySet<T> implements NavigableSet<T> {
         this.comparator = other.comparator;
     }
 
+    private T search(T t, int shift, boolean equal) {
+        int position = Collections.binarySearch(array, t, comparator);
+        if (position >= 0) {
+            position += equal ? 0 : shift;
+        } else {
+            position = (-position - 1) + ((shift > 0) ? shift - 1 : shift);
+        }
+        return (0 <= position && position < size()) ? array.get(position) : null;
+    }
+
     @Override
     public T lower(T t) {
-        return null;
+        return search(t, -1, false);
     }
 
     @Override
     public T floor(T t) {
-        return null;
+        return search(t, -1, true);
     }
 
     @Override
     public T ceiling(T t) {
-        return null;
+        return search(t, 1, true);
     }
 
     @Override
     public T higher(T t) {
-        return null;
+        return search(t, 1, false);
     }
 
     @Override
@@ -74,7 +84,11 @@ public class ArraySet<T> implements NavigableSet<T> {
 
     @Override
     public boolean contains(Object o) {
-        return false;
+        try {
+            return o != null && Collections.binarySearch(array, (T) o, comparator) >= 0;
+        } catch (ClassCastException ignored) {
+            return false;
+        }
     }
 
     @Override
@@ -104,7 +118,7 @@ public class ArraySet<T> implements NavigableSet<T> {
 
     @Override
     public boolean containsAll(Collection<?> c) {
-        return c.stream().map(this::contains).reduce(true, (acc, a) -> acc | a);
+        return c.stream().map(this::contains).reduce(true, (acc, a) -> acc && a);
     }
 
     @Override
