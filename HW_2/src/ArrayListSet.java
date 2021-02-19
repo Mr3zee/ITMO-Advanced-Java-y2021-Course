@@ -4,45 +4,36 @@ import exceptions.ASUnsupportedOperationException;
 import java.util.*;
 
 
-public class ArraySet<T> implements NavigableSet<T> {
-    private final T[] array;
+public class ArrayListSet<T> implements NavigableSet<T> {
+    private final ArrayList<T> array;
     private final Comparator<? super T> comparator;
 
-    @SuppressWarnings("unchecked")
-    public ArraySet(final Collection<? extends T> array, final Comparator<? super T> comparator) {
+    public ArrayListSet(final Collection<? extends T> array, final Comparator<? super T> comparator) {
         TreeSet<T> treeSet = new TreeSet<>(comparator);
         treeSet.addAll(array);
-        this.array = (T[]) treeSet.toArray();
+        this.array = new ArrayList<>(treeSet);
         this.comparator = comparator;
     }
 
-    public ArraySet(final Comparator<? super T> comparator) {
+    public ArrayListSet(final Comparator<? super T> comparator) {
         this(List.of(), comparator);
     }
 
-    public ArraySet(final T[] array, final Comparator<? super T> comparator) {
-        this(Arrays.asList(array), comparator);
-    }
-
-    public ArraySet(final Collection<? extends T> array) {
+    public ArrayListSet(final Collection<? extends T> array) {
         this(array, null);
     }
 
-    public ArraySet() {
+    public ArrayListSet() {
         this(List.of(), null);
     }
 
-    public ArraySet(final ArraySet<T> other) {
+    public ArrayListSet(final ArrayListSet<T> other) {
         this.array = other.array;
         this.comparator = other.comparator;
     }
 
-    private ArraySet<T> emptySet() {
-        return new ArraySet<>(comparator);
-    }
-
     private int searchIndex(T t, int shift, boolean inclusive) {
-        int position = Arrays.binarySearch(array, t, comparator);
+        int position = Collections.binarySearch(array, t, comparator);
         if (position >= 0) {
             position += inclusive ? 0 : shift;
         } else {
@@ -53,7 +44,7 @@ public class ArraySet<T> implements NavigableSet<T> {
 
     private T search(T t, int shift, boolean inclusive) {
         int index = searchIndex(t, shift, inclusive);
-        return index == -1 ? null : array[index];
+        return index == -1 ? null : array.get(index);
     }
 
     @Override
@@ -88,19 +79,19 @@ public class ArraySet<T> implements NavigableSet<T> {
 
     @Override
     public int size() {
-        return array.length;
+        return array.size();
     }
 
     @Override
     public boolean isEmpty() {
-        return array.length == 0;
+        return array.isEmpty();
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public boolean contains(Object o) {
         try {
-            return o != null && Arrays.binarySearch(array, (T) o, comparator) >= 0;
+            return o != null && Collections.binarySearch(array, (T) o, comparator) >= 0;
         } catch (ClassCastException ignored) {
             return false;
         }
@@ -108,26 +99,17 @@ public class ArraySet<T> implements NavigableSet<T> {
 
     @Override
     public Iterator<T> iterator() {
-        return Arrays.asList(array).iterator();
+        return Collections.unmodifiableList(array).iterator();
     }
 
     @Override
     public Object[] toArray() {
-        return Arrays.copyOf(array, size());
+        return array.toArray();
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T1> T1[] toArray(T1[] a) {
-        int size = size();
-        if (a.length < size) {
-            return (T1[]) Arrays.copyOf(array, size(), a.getClass());
-        }
-        System.arraycopy(array, 0, a, 0, size);
-        if (a.length > size) {
-            a[size] = null;
-        }
-        return a;
+        return array.toArray(a);
     }
 
     @Override
@@ -167,7 +149,7 @@ public class ArraySet<T> implements NavigableSet<T> {
 
     @Override
     public NavigableSet<T> descendingSet() {
-        return new ArraySet<>(array, Collections.reverseOrder(comparator));
+        return new ArrayListSet<>(new ArrayList<>(array), Collections.reverseOrder(comparator));
     }
 
     @Override
@@ -179,15 +161,14 @@ public class ArraySet<T> implements NavigableSet<T> {
     public NavigableSet<T> subSet(T fromElement, boolean fromInclusive, T toElement, boolean toInclusive) {
         int fromIndex = searchIndex(fromElement, 1, fromInclusive);
         int toIndex = searchIndex(toElement, -1 , toInclusive);
-        return (fromIndex != -1 && toIndex != -1 && fromIndex <= toIndex)
-                ? new ArraySet<>(Arrays.copyOfRange(array, fromIndex, toIndex + 1), comparator)
-                : emptySet();
+        List<T> subList = (fromIndex != -1 && toIndex != -1 && fromIndex <= toIndex) ? array.subList(fromIndex, toIndex + 1) : List.of();
+        return new ArrayListSet<>(subList, comparator);
     }
 
     @Override
     public NavigableSet<T> headSet(T toElement, boolean inclusive) {
         if (isEmpty()) {
-            return emptySet();
+            return new ArrayListSet<>(comparator);
         }
         return subSet(first(), true, toElement, inclusive);
     }
@@ -195,7 +176,7 @@ public class ArraySet<T> implements NavigableSet<T> {
     @Override
     public NavigableSet<T> tailSet(T fromElement, boolean inclusive) {
         if (isEmpty()) {
-            return emptySet();
+            return new ArrayListSet<>(comparator);
         }
         return subSet(fromElement, inclusive, last(), true);
     }
@@ -223,13 +204,13 @@ public class ArraySet<T> implements NavigableSet<T> {
     @Override
     public T first() {
         checkIsEmpty();
-        return array[0];
+        return array.get(0);
     }
 
     @Override
     public T last() {
         checkIsEmpty();
-        return array[size() - 1];
+        return array.get(size() - 1);
     }
 
     private void checkIsEmpty() {
