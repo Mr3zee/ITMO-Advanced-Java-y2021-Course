@@ -32,6 +32,10 @@ public class ArrayListSet<T> implements NavigableSet<T> {
         this.comparator = other.comparator;
     }
 
+    private ArraySet<T> emptySet() {
+        return new ArraySet<>(comparator);
+    }
+
     private int searchIndex(T t, int shift, boolean inclusive) {
         int position = Collections.binarySearch(array, t, comparator);
         if (position >= 0) {
@@ -168,7 +172,7 @@ public class ArrayListSet<T> implements NavigableSet<T> {
     @Override
     public NavigableSet<T> headSet(T toElement, boolean inclusive) {
         if (isEmpty()) {
-            return new ArrayListSet<>(comparator);
+            return emptySet();
         }
         return subSet(first(), true, toElement, inclusive);
     }
@@ -176,7 +180,7 @@ public class ArrayListSet<T> implements NavigableSet<T> {
     @Override
     public NavigableSet<T> tailSet(T fromElement, boolean inclusive) {
         if (isEmpty()) {
-            return new ArrayListSet<>(comparator);
+            return emptySet();
         }
         return subSet(fromElement, inclusive, last(), true);
     }
