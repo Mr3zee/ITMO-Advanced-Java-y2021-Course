@@ -1,8 +1,22 @@
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
 
 public class Main {
     public static void main(String[] args) {
+        ArraySet<Integer> set = new ArraySet<>(List.of(10, 20, 30, 40, 50, 60, 70), new Cmp());
+        System.out.println(Arrays.toString(set.headSet(10, false).toArray()));
+        System.out.println(Arrays.toString(set.tailSet(10, false).toArray()));
+        System.out.println();
+    }
 
+    private static class Cmp implements Comparator<Integer> {
+
+        @Override
+        public int compare(Integer o1, Integer o2) {
+            return (o1 - o2);
+        }
     }
 
     private static class A implements Comparable<A> {

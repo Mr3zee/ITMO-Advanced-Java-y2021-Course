@@ -15,7 +15,7 @@ public class ArraySet<T> implements NavigableSet<T> {
         this.comparator = comparator;
     }
 
-    public ArraySet(final Comparator<T> comparator) {
+    public ArraySet(final Comparator<? super T> comparator) {
         this(List.of(), comparator);
     }
 
@@ -32,14 +32,19 @@ public class ArraySet<T> implements NavigableSet<T> {
         this.comparator = other.comparator;
     }
 
-    private T search(T t, int shift, boolean equal) {
+    private int searchIndex(T t, int shift, boolean inclusive) {
         int position = Collections.binarySearch(array, t, comparator);
         if (position >= 0) {
-            position += equal ? 0 : shift;
+            position += inclusive ? 0 : shift;
         } else {
             position = (-position - 1) + ((shift > 0) ? shift - 1 : shift);
         }
-        return (0 <= position && position < size()) ? array.get(position) : null;
+        return (0 <= position && position < size()) ? position : -1;
+    }
+
+    private T search(T t, int shift, boolean inclusive) {
+        int index = searchIndex(t, shift, inclusive);
+        return index == -1 ? null : array.get(index);
     }
 
     @Override
@@ -153,17 +158,26 @@ public class ArraySet<T> implements NavigableSet<T> {
 
     @Override
     public NavigableSet<T> subSet(T fromElement, boolean fromInclusive, T toElement, boolean toInclusive) {
-        return null;
+        int fromIndex = searchIndex(fromElement, 1, fromInclusive);
+        int toIndex = searchIndex(toElement, -1 , toInclusive);
+        List<T> subList = (fromIndex != -1 && toIndex != -1 && fromIndex <= toIndex) ? array.subList(fromIndex, toIndex + 1) : List.of();
+        return new ArraySet<>(subList, comparator);
     }
 
     @Override
     public NavigableSet<T> headSet(T toElement, boolean inclusive) {
-        return null;
+        if (isEmpty()) {
+            return new ArraySet<>(comparator);
+        }
+        return subSet(first(), true, toElement, inclusive);
     }
 
     @Override
     public NavigableSet<T> tailSet(T fromElement, boolean inclusive) {
-        return null;
+        if (isEmpty()) {
+            return new ArraySet<T>(comparator);
+        }
+        return subSet(fromElement, inclusive, last(), true);
     }
 
     @Override
@@ -173,17 +187,17 @@ public class ArraySet<T> implements NavigableSet<T> {
 
     @Override
     public SortedSet<T> subSet(T fromElement, T toElement) {
-        return null;
+        return subSet(fromElement, true, toElement, false);
     }
 
     @Override
     public SortedSet<T> headSet(T toElement) {
-        return null;
+        return headSet(toElement, false);
     }
 
     @Override
     public SortedSet<T> tailSet(T fromElement) {
-        return null;
+        return tailSet(fromElement, true);
     }
 
     @Override
@@ -202,5 +216,9 @@ public class ArraySet<T> implements NavigableSet<T> {
         if (isEmpty()) {
             throw new ASNoSuchElementException();
         }
+    }
+
+    public void print() {
+        System.out.println(Arrays.toString(toArray()));
     }
 }
