@@ -32,8 +32,8 @@ public class ArrayListSet<T> implements NavigableSet<T> {
         this.comparator = other.comparator;
     }
 
-    private ArraySet<T> emptySet() {
-        return new ArraySet<>(comparator);
+    private ArrayListSet<T> emptySet() {
+        return new ArrayListSet<>(comparator);
     }
 
     private int searchIndex(T t, int shift, boolean inclusive) {
