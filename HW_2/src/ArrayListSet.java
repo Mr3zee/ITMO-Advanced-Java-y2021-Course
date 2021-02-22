@@ -36,7 +36,7 @@ public class ArrayListSet<T> implements NavigableSet<T> {
         return new ArrayListSet<>(comparator);
     }
 
-    private int searchIndex(T t, int shift, boolean inclusive) {
+    private int searchIndex(final T t, int shift, boolean inclusive) {
         int position = Collections.binarySearch(array, t, comparator);
         if (position >= 0) {
             position += inclusive ? 0 : shift;
@@ -46,28 +46,28 @@ public class ArrayListSet<T> implements NavigableSet<T> {
         return (0 <= position && position < size()) ? position : -1;
     }
 
-    private T search(T t, int shift, boolean inclusive) {
+    private T search(final T t, int shift, boolean inclusive) {
         int index = searchIndex(t, shift, inclusive);
         return index == -1 ? null : array.get(index);
     }
 
     @Override
-    public T lower(T t) {
+    public T lower(final T t) {
         return search(t, -1, false);
     }
 
     @Override
-    public T floor(T t) {
+    public T floor(final T t) {
         return search(t, -1, true);
     }
 
     @Override
-    public T ceiling(T t) {
+    public T ceiling(final T t) {
         return search(t, 1, true);
     }
 
     @Override
-    public T higher(T t) {
+    public T higher(final T t) {
         return search(t, 1, false);
     }
 
@@ -93,7 +93,7 @@ public class ArrayListSet<T> implements NavigableSet<T> {
 
     @Override
     @SuppressWarnings("unchecked")
-    public boolean contains(Object o) {
+    public boolean contains(final Object o) {
         try {
             return o != null && Collections.binarySearch(array, (T) o, comparator) >= 0;
         } catch (ClassCastException ignored) {
@@ -117,32 +117,32 @@ public class ArrayListSet<T> implements NavigableSet<T> {
     }
 
     @Override
-    public boolean add(T t) {
+    public boolean add(final T t) {
         throw new ASUnsupportedOperationException("add");
     }
 
     @Override
-    public boolean remove(Object o) {
+    public boolean remove(final Object o) {
         throw new ASUnsupportedOperationException("remove");
     }
 
     @Override
-    public boolean containsAll(Collection<?> c) {
+    public boolean containsAll(final Collection<?> c) {
         return c.stream().map(this::contains).reduce(true, (acc, a) -> acc && a);
     }
 
     @Override
-    public boolean addAll(Collection<? extends T> c) {
+    public boolean addAll(final Collection<? extends T> c) {
         throw new ASUnsupportedOperationException("addAll");
     }
 
     @Override
-    public boolean retainAll(Collection<?> c) {
+    public boolean retainAll(final Collection<?> c) {
         throw new ASUnsupportedOperationException("retainAll");
     }
 
     @Override
-    public boolean removeAll(Collection<?> c) {
+    public boolean removeAll(final Collection<?> c) {
         throw new ASUnsupportedOperationException("removeAll");
     }
 
@@ -162,7 +162,7 @@ public class ArrayListSet<T> implements NavigableSet<T> {
     }
 
     @Override
-    public NavigableSet<T> subSet(T fromElement, boolean fromInclusive, T toElement, boolean toInclusive) {
+    public NavigableSet<T> subSet(final T fromElement, boolean fromInclusive, final T toElement, boolean toInclusive) {
         int fromIndex = searchIndex(fromElement, 1, fromInclusive);
         int toIndex = searchIndex(toElement, -1 , toInclusive);
         List<T> subList = (fromIndex != -1 && toIndex != -1 && fromIndex <= toIndex) ? array.subList(fromIndex, toIndex + 1) : List.of();
@@ -170,7 +170,7 @@ public class ArrayListSet<T> implements NavigableSet<T> {
     }
 
     @Override
-    public NavigableSet<T> headSet(T toElement, boolean inclusive) {
+    public NavigableSet<T> headSet(final T toElement, boolean inclusive) {
         if (isEmpty()) {
             return emptySet();
         }
@@ -178,7 +178,7 @@ public class ArrayListSet<T> implements NavigableSet<T> {
     }
 
     @Override
-    public NavigableSet<T> tailSet(T fromElement, boolean inclusive) {
+    public NavigableSet<T> tailSet(final T fromElement, boolean inclusive) {
         if (isEmpty()) {
             return emptySet();
         }
@@ -191,17 +191,17 @@ public class ArrayListSet<T> implements NavigableSet<T> {
     }
 
     @Override
-    public SortedSet<T> subSet(T fromElement, T toElement) {
+    public SortedSet<T> subSet(final T fromElement, T toElement) {
         return subSet(fromElement, true, toElement, false);
     }
 
     @Override
-    public SortedSet<T> headSet(T toElement) {
+    public SortedSet<T> headSet(final T toElement) {
         return headSet(toElement, false);
     }
 
     @Override
-    public SortedSet<T> tailSet(T fromElement) {
+    public SortedSet<T> tailSet(final T fromElement) {
         return tailSet(fromElement, true);
     }
 
