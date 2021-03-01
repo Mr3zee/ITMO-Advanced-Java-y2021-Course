@@ -13,17 +13,12 @@ public class ArraySet<T> extends AbstractSet<T> implements NavigableSet<T> {
         TreeSet<T> treeSet = new TreeSet<>(comparator);
         treeSet.addAll(array);
         this.array = new ArrayList<>(treeSet);
-        this.comparator = getComparator(comparator);
-    }
-
-    @SuppressWarnings("unchecked")
-    private Comparator<? super T> getComparator(final Comparator<? super T> comparator) {
-        return comparator == null ? (Comparator<? super T>) Comparator.naturalOrder() : comparator;
+        this.comparator = comparator;
     }
 
     private ArraySet(ReverseWrapper<T> wrapper, final Comparator<? super T> comparator) {
         this.array = wrapper;
-        this.comparator = getComparator(comparator);
+        this.comparator = comparator;
     }
 
     public ArraySet(final Comparator<? super T> comparator) {
@@ -158,10 +153,17 @@ public class ArraySet<T> extends AbstractSet<T> implements NavigableSet<T> {
 
     @Override
     public NavigableSet<T> subSet(final T fromElement, boolean fromInclusive, final T toElement, boolean toInclusive) {
-        if (comparator.compare(fromElement, toElement) > 0) {
+        if (compareTo(fromElement, toElement) > 0) {
             throw new ASSubsetIndexException();
         }
         return getSlice(fromElement, fromInclusive, toElement, toInclusive);
+    }
+
+    @SuppressWarnings("unchecked")
+    private int compareTo(final T a, final T b) {
+        return comparator == null
+                ? ((Comparable<T>) a).compareTo(b)
+                : comparator.compare(a, b);
     }
 
     @Override
