@@ -13,12 +13,17 @@ public class ArraySet<T> extends AbstractSet<T> implements NavigableSet<T> {
         TreeSet<T> treeSet = new TreeSet<>(comparator);
         treeSet.addAll(array);
         this.array = new ArrayList<>(treeSet);
-        this.comparator = comparator;
+        this.comparator = getComparator(comparator);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Comparator<? super T> getComparator(final Comparator<? super T> comparator) {
+        return comparator == null ? (Comparator<? super T>) Comparator.naturalOrder() : comparator;
     }
 
     private ArraySet(ReverseWrapper<T> wrapper, final Comparator<? super T> comparator) {
         this.array = wrapper;
-        this.comparator = comparator;
+        this.comparator = getComparator(comparator);
     }
 
     public ArraySet(final Comparator<? super T> comparator) {
