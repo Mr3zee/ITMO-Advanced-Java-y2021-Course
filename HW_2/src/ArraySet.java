@@ -6,13 +6,18 @@ import java.util.*;
 
 
 public class ArraySet<T> extends AbstractSet<T> implements NavigableSet<T> {
-    private final ArrayList<T> array;
+    private final List<T> array;
     private final Comparator<? super T> comparator;
 
     public ArraySet(final Collection<? extends T> array, final Comparator<? super T> comparator) {
         TreeSet<T> treeSet = new TreeSet<>(comparator);
         treeSet.addAll(array);
         this.array = new ArrayList<>(treeSet);
+        this.comparator = comparator;
+    }
+
+    private ArraySet(ReverseWrapper<T> wrapper, final Comparator<? super T> comparator) {
+        this.array = wrapper;
         this.comparator = comparator;
     }
 
@@ -129,7 +134,7 @@ public class ArraySet<T> extends AbstractSet<T> implements NavigableSet<T> {
 
     @Override
     public NavigableSet<T> descendingSet() {
-        return new ArraySet<>(array, Collections.reverseOrder(comparator));
+        return new ArraySet<>(new ReverseWrapper<>(array), Collections.reverseOrder(comparator));
     }
 
     @Override
@@ -205,6 +210,24 @@ public class ArraySet<T> extends AbstractSet<T> implements NavigableSet<T> {
     private void checkIsEmpty() {
         if (isEmpty()) {
             throw new ASNoSuchElementException();
+        }
+    }
+
+    private static class ReverseWrapper<T> extends AbstractList<T> {
+        private final List<T> array;
+
+        private ReverseWrapper(final List<T> array) {
+            this.array = array;
+        }
+
+        @Override
+        public T get(int index) {
+            return array.get(size() - index - 1);
+        }
+
+        @Override
+        public int size() {
+            return array.size();
         }
     }
 }
