@@ -13,7 +13,7 @@ public class WalkException extends Exception {
     protected WalkException() {
     }
 
-    WalkException init(final String name, final String message, final String ...files) {
+    WalkException init(final String name, final String message, final String... files) {
         this.files = files;
         this.name = name;
         this.message = message;
@@ -42,7 +42,7 @@ public class WalkException extends Exception {
     protected String getFormattedMessage() {
         return files.length != 0
                 ? String.format(getFilesFormat(),
-                    Arrays.stream(this.files)
+                Arrays.stream(this.files)
                         .map(String::valueOf)
                         .collect(Collectors.joining(", ")))
                 : getDefaultMessage();

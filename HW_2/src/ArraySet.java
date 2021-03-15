@@ -4,7 +4,6 @@ import exceptions.ASUnsupportedOperationException;
 
 import java.util.*;
 
-
 public class ArraySet<T> extends AbstractSet<T> implements NavigableSet<T> {
     private final List<T> array;
     private final Comparator<? super T> comparator;
@@ -16,7 +15,7 @@ public class ArraySet<T> extends AbstractSet<T> implements NavigableSet<T> {
         this.comparator = comparator;
     }
 
-    private ArraySet(ReverseWrapper<T> wrapper, final Comparator<? super T> comparator) {
+    private ArraySet(final Wrapper<T> wrapper, final Comparator<? super T> comparator) {
         this.array = wrapper;
         this.comparator = comparator;
     }
@@ -144,11 +143,10 @@ public class ArraySet<T> extends AbstractSet<T> implements NavigableSet<T> {
 
     private NavigableSet<T> getSlice(final T fromElement, boolean fromInclusive, final T toElement, boolean toInclusive) {
         int fromIndex = searchIndex(fromElement, 1, fromInclusive);
-        int toIndex = searchIndex(toElement, -1 , toInclusive);
-        List<T> subList = (fromIndex != -1 && toIndex != -1 && fromIndex <= toIndex)
-                ? array.subList(fromIndex, toIndex + 1)
-                : List.of();
-        return new ArraySet<>(subList, comparator);
+        int toIndex = searchIndex(toElement, -1, toInclusive);
+        return (fromIndex != -1 && toIndex != -1 && fromIndex <= toIndex)
+                ? new ArraySet<>(new ViewWrapper<>(array, fromIndex, toIndex - fromIndex + 1), comparator)
+                : new ArraySet<>(comparator);
     }
 
     @Override
@@ -220,16 +218,49 @@ public class ArraySet<T> extends AbstractSet<T> implements NavigableSet<T> {
         }
     }
 
-    private static class ReverseWrapper<T> extends AbstractList<T> {
-        private final List<T> array;
+    private static class ReverseWrapper<T> extends Wrapper<T> {
 
         private ReverseWrapper(final List<T> array) {
-            this.array = array;
+            super(array);
         }
 
         @Override
         public T get(int index) {
             return array.get(size() - index - 1);
+        }
+    }
+
+    private static class ViewWrapper<T> extends Wrapper<T> {
+        private final int start;
+        private final int size;
+
+        public ViewWrapper(List<T> c, int start, int size) {
+            super(c);
+            this.start = start;
+            this.size = size;
+        }
+
+        @Override
+        public T get(int index) {
+            return super.get(index + start);
+        }
+
+        @Override
+        public int size() {
+            return size;
+        }
+    }
+
+    private abstract static class Wrapper<T> extends AbstractList<T> {
+        protected final List<T> array;
+
+        protected Wrapper(final List<T> array) {
+            this.array = array;
+        }
+
+        @Override
+        public T get(int index) {
+            return array.get(index);
         }
 
         @Override
