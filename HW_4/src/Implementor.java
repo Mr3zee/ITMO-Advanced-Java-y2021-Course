@@ -1,23 +1,24 @@
-import java.io.BufferedWriter;
-import java.io.IOException;
+import javax.tools.JavaCompiler;
+import javax.tools.ToolProvider;
+import java.io.*;
 import java.lang.reflect.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.InvalidPathException;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-public class Implementor implements Impler {
+public class Implementor implements Impler, JarImpler {
     private static final String nl = String.format("%n");
     private static final String nl2 = nl + nl;
     private final Map<TypeParameter, TypeParameter> typesMap = new HashMap<>();
-    private BufferedWriter writer;
+    private ImplementorOutputStream outputStream;
 
     public void run(final String[] args) {
         if (args.length != 2) {
@@ -55,8 +56,22 @@ public class Implementor implements Impler {
         }
     }
 
+    private static ImplementorOutputStream getBufferedOutputStream(final Class<?> clazz, final Path root) throws IOException {
+        Path path = createOutputFile(root, getImplClassFullName(clazz));
+        return new ImplementorOutputStream(
+                new BufferedOutputStream(
+                        new FileOutputStream(path.toFile())
+                ),
+                path
+        );
+    }
+
     @Override
-    public void implement(final Class<?> clazz, final Path root) throws ImplerException {
+    public void implement(final Class<?> token, final Path root) throws ImplerException {
+        implement(token, root, Implementor::getBufferedOutputStream);
+    }
+
+    public void implement(final Class<?> clazz, final Path path, final OutputStreamGetter getter) throws ImplerException {
         if (clazz == null) {
             throw new ImplerException("Token cannot be null");
         }
@@ -69,13 +84,12 @@ public class Implementor implements Impler {
                     "Not supported class to implement: " + clazz.getName()
             );
         }
-        Path path = createOutputFile(root, getImplClassFullName(clazz));
-        try (BufferedWriter writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
-            this.writer = writer;
+        try (ImplementorOutputStream stream = getter.getStream(clazz, path)) {
+            this.outputStream = stream;
             createClass(clazz);
         } catch (UncheckedImplerException | IOException e) {
             try {
-                Files.delete(path);
+                Files.delete(outputStream.getPath());
             } catch (IOException e2) {
                 throw new ImplerException("Unable to delete file after error occurred:\n" + e2.getMessage());
             }
@@ -106,14 +120,14 @@ public class Implementor implements Impler {
                     .append(createTypeParameters(typeParameters, TypeVariable::getName))
                     .append("{").append(nl2);
 
-            writer.write(builder.toString());
+            outputStream.write(builder.toString());
 
             if (!clazz.isInterface()) {
                 createConstructors(clazz, className);
             }
             createMethods(clazz);
 
-            writer.write("}");
+            outputStream.write("}");
         } catch (IOException e) {
             throw new UncheckedImplerException(e.getMessage());
         }
@@ -387,7 +401,7 @@ public class Implementor implements Impler {
                 .append("{ ").append(addWhitespaceIfNotEmpty(body)).append("}")
                 .append(nl2);
         try {
-            writer.write(builder.toString());
+            outputStream.write(builder.toString());
         } catch (IOException e) {
             throw new UncheckedImplerException(e.getMessage());
         }
@@ -417,32 +431,32 @@ public class Implementor implements Impler {
     }
 
     private static String getImplClassFullName(final Class<?> clazz) {
-        return (clazz.getPackageName() + "." + clazz.getSimpleName()).replace('.', '\\') + "Impl.java";
+        return getImplClassFullName(clazz, ".java");
     }
 
-    private static Path createOutputFile(final Path root, final String classFullName) throws ImplerException {
+    private static String getImplClassFullName(final Class<?> clazz, final String extension) {
+        return (clazz.getPackageName() + "." + clazz.getSimpleName()).replace('.', '\\') + "Impl" + extension;
+    }
+
+    private static Path createOutputFile(final Path root, final String classFullName) throws IOException {
         if (root == null) {
-            throw new ImplerException("Root cannot be null");
+            throw new IOException("Root cannot be null");
         }
         return createFile(Path.of(root.toString(), classFullName));
     }
 
-    private static Path createFile(final Path file) throws ImplerException {
-        try {
-            if (!Files.exists(file)) {
-                final Path parent = file.getParent();
-                if (parent == null) {
-                    throw new IOException();
-                }
-                Files.createDirectories(parent);
-                Files.createFile(file);
-            } else {
-                Files.writeString(file, "");
+    private static Path createFile(final Path file) throws IOException {
+        if (!Files.exists(file)) {
+            final Path parent = file.getParent();
+            if (parent == null) {
+                throw new IOException();
             }
-            return file;
-        } catch (IOException e) {
-            throw new ImplerException("Unable to create output file");
+            Files.createDirectories(parent);
+            Files.createFile(file);
+        } else {
+            Files.writeString(file, "");
         }
+        return file;
     }
 
     private static String join(final Stream<String> stream, final String delimiter) {
@@ -515,4 +529,99 @@ public class Implementor implements Impler {
         }
     }
 
+    private static class ImplementorOutputStream implements AutoCloseable {
+        private final OutputStream stream;
+        private final Path path;
+
+        private ImplementorOutputStream(final OutputStream stream, final Path path) {
+            this.stream = stream;
+            this.path = path;
+        }
+
+        public Path getPath() {
+            return path;
+        }
+
+        private void write(final String string) throws IOException {
+            stream.write(string.getBytes(StandardCharsets.UTF_8));
+        }
+
+        private void write(final StringBuilder builder) throws IOException {
+            write(builder.toString());
+        }
+
+        @Override
+        public void close() throws IOException {
+            stream.close();
+        }
+    }
+
+    @FunctionalInterface
+    private interface OutputStreamGetter {
+        ImplementorOutputStream getStream(Class<?> clazz, Path path) throws IOException;
+    }
+
+    /* JAR IMPLEMENTOR */
+
+    @Override
+    public void implementJar(final Class<?> clazz, final Path jarFile) throws ImplerException {
+        implement(clazz, TEMP_ROOT, Implementor::getBufferedOutputStream);
+        try (JarOutputStream jarOutputStream = getJarOutputStream(clazz, jarFile)) {
+            String javaTempFile = outputStream.getPath().toString();
+            compile(javaTempFile);
+            copyToJar(jarOutputStream, javaTempFile);
+            jarOutputStream.closeEntry();
+            clean();
+        } catch (IOException e) {
+            throw new ImplerException("Unable to create jar file due to error: " + e.getMessage());
+        }
+    }
+
+    private static JarOutputStream getJarOutputStream(final Class<?> clazz, final Path jarPath) throws IOException {
+        JarOutputStream jarOutputStream = new JarOutputStream(new FileOutputStream(jarPath.toFile()));
+        jarOutputStream.putNextEntry(
+                new JarEntry(getImplClassFullName(clazz, ".class").replace("\\", "/"))
+        );
+        return jarOutputStream;
+    }
+
+    private static void compile(final String path) throws ImplerException {
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        int exitCode = compiler.run(null, null, null, path);
+        if (exitCode != 0) {
+            throw new ImplerException("Unable to compile temp jar class");
+        }
+    }
+
+    private static void copyToJar(final JarOutputStream jarOutputStream, final String javaFile) throws ImplerException {
+        try (BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(toClassFile(javaFile)))) {
+            inputStream.transferTo(jarOutputStream);
+        } catch (IOException e) {
+            throw new ImplerException("Unable to copy temp .class file to jar: " + e.getMessage());
+        }
+    }
+
+    private static String toClassFile(final String javaFile) {
+        return javaFile.substring(0, javaFile.length() - 5) + ".class";
+    }
+
+    private static final SimpleFileVisitor<Path> DELETE_VISITOR = new SimpleFileVisitor<>() {
+        @Override
+        public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
+            Files.delete(file);
+            return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult postVisitDirectory(final Path dir, final IOException exc) throws IOException {
+            Files.delete(dir);
+            return FileVisitResult.CONTINUE;
+        }
+    };
+
+    private static final Path TEMP_ROOT = Path.of("temp");
+
+    private static void clean() throws IOException {
+        Files.walkFileTree(TEMP_ROOT, DELETE_VISITOR);
+    }
 }
