@@ -1,8 +1,10 @@
+package info.kgeorgiy.ja.sysoev.implementor;
+
 import javax.tools.JavaCompiler;
 import javax.tools.ToolProvider;
 import java.io.*;
 import java.lang.reflect.*;
-import java.nio.charset.StandardCharsets;
+import java.net.URISyntaxException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
@@ -15,7 +17,8 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
- * Implementor class is able to create new .java and .jar files
+ * info.kgeorgiy.ja.sysoev.implementor.Implementor class is able to create new .java and .jar files
+ * @author Alexander Sysoev, ITMO 2021
  */
 public class Implementor implements Impler, JarImpler {
     /**
@@ -33,25 +36,26 @@ public class Implementor implements Impler, JarImpler {
     /**
      * Output Stream to write class implementation
      */
-    private ImplementorOutputStream outputStream;
+    private ImplementorWriter writer;
 
     /**
      * Creates buffered output stream to write implementation to
      * @param clazz class to implement
      * @param root root path for class
-     * @return new {@link ImplementorOutputStream} for given class
+     * @return new {@link ImplementorWriter} for given class
      * @throws IOException if unable to create output file
      */
-    private static ImplementorOutputStream getBufferedOutputStream(final Class<?> clazz, final Path root) throws IOException {
+    private static ImplementorWriter getBufferedOutputStream(final Class<?> clazz, final Path root) throws IOException {
         Path path = createOutputFile(root, getImplClassFullName(clazz));
-        return new ImplementorOutputStream(
-                new BufferedOutputStream(
-                        new FileOutputStream(path.toFile())
-                ),
+        return new ImplementorWriter(
+                new ImplementorUnicodeWriter(Files.newBufferedWriter(path)),
                 path
         );
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void implement(final Class<?> token, final Path root) throws ImplerException {
         implement(token, root, Implementor::getBufferedOutputStream);
@@ -65,7 +69,7 @@ public class Implementor implements Impler, JarImpler {
      * @param getter function to get stream to write implementation to
      * @throws ImplerException if unable to implement clazz
      */
-    public void implement(final Class<?> clazz, final Path path, final OutputStreamGetter getter) throws ImplerException {
+    private void implement(final Class<?> clazz, final Path path, final OutputWriterGetter getter) throws ImplerException {
         if (clazz == null) {
             throw new ImplerException("Token cannot be null");
         }
@@ -78,12 +82,12 @@ public class Implementor implements Impler, JarImpler {
                     "Not supported class to implement: " + clazz.getName()
             );
         }
-        try (ImplementorOutputStream stream = getter.getStream(clazz, path)) {
-            this.outputStream = stream;
+        try (ImplementorWriter writer = getter.getStream(clazz, path)) {
+            this.writer = writer;
             createClass(clazz);
         } catch (UncheckedImplerException | IOException e) {
             try {
-                Files.delete(outputStream.getPath());
+                Files.delete(writer.getPath());
             } catch (IOException e2) {
                 throw new ImplerException("Unable to delete file after error occurred:\n" + e2.getMessage());
             }
@@ -120,14 +124,14 @@ public class Implementor implements Impler, JarImpler {
                     .append(createTypeParameters(typeParameters, TypeVariable::getName))
                     .append("{").append(nl2);
 
-            outputStream.write(builder);
+            writer.write(builder);
 
             if (!clazz.isInterface()) {
                 createConstructors(clazz, className);
             }
             createMethods(clazz);
 
-            outputStream.write("}");
+            writer.write("}");
         } catch (IOException e) {
             throw new UncheckedImplerException(e.getMessage());
         }
@@ -219,7 +223,7 @@ public class Implementor implements Impler, JarImpler {
      * Creates one full type parameter relatively to declaring class
      * @param variable variable to work with
      * @param declaringClass class, in which variable was declared
-     * @return full type parameter: T extends E1 & E2 ...
+     * @return full type parameter: T extends E1 &#38; E2 ...
      */
     private String createFullTypeParameter(final TypeVariable<?> variable, final Class<?> declaringClass) {
         return getFullTypeDeclarationUpper(variable.getTypeName(), variable.getBounds(), declaringClass);
@@ -281,7 +285,7 @@ public class Implementor implements Impler, JarImpler {
     /**
      * Returns all methods, that can be overriden for given class
      * @param clazz to search methods in
-     * @return {@link java.util.stream.Stream} of {@link java.lang.reflect.Method} that can be overriden
+     * @return {@link Stream} of {@link java.lang.reflect.Method} that can be overriden
      */
     private static Stream<Method> getAllAccessibleMethods(final Class<?> clazz) {
         Package actualPackage = clazz.getPackage();
@@ -356,8 +360,8 @@ public class Implementor implements Impler, JarImpler {
     }
 
     /**
-     * Checks if {@link java.lang.reflect.Executable}
-     * ({@link java.lang.reflect.Method} or {@link java.lang.reflect.Constructor}) is forbidden to implement
+     * Checks if {@link Executable}
+     * ({@link Method} or {@link Constructor}) is forbidden to implement
      * @param flags modifiers of executable
      * @return true if executable is forbidden, else false
      */
@@ -375,7 +379,7 @@ public class Implementor implements Impler, JarImpler {
      * @param word extends or super
      * @param bounds type's bounds
      * @param declaringClass class, in which variable was declared
-     * @return full type parameter: T extends/super E1 & E2 ...
+     * @return full type parameter: T extends/super E1 &#38; E2 ...
      */
     private String getFullTypeDeclaration(
             final String name,
@@ -393,7 +397,7 @@ public class Implementor implements Impler, JarImpler {
      * @param name of the variable to work with
      * @param bounds type's bounds
      * @param declaringClass class, in which variable was declared
-     * @return full type parameter: T extends E1 & E2 ...
+     * @return full type parameter: T extends E1 &#38; E2 ...
      */
     private String getFullTypeDeclarationUpper(final String name, final Type[] bounds, final Class<?> declaringClass) {
         return getFullTypeDeclaration(name, "extends", bounds, declaringClass);
@@ -404,7 +408,7 @@ public class Implementor implements Impler, JarImpler {
      *
      * @param bounds type's bounds
      * @param declaringClass class, in which wildcard was declared
-     * @return full type parameter: ? super E1 & E2 ...
+     * @return full type parameter: ? super E1 &#38; E2 ...
      */
     private String getFullTypeDeclarationLower(final Type[] bounds, final Class<?> declaringClass) {
         return getFullTypeDeclaration("?", "super", bounds, declaringClass);
@@ -552,7 +556,7 @@ public class Implementor implements Impler, JarImpler {
                 .append("{ ").append(addWhitespaceIfNotEmpty(body)).append("}")
                 .append(nl2);
         try {
-            outputStream.write(builder.toString());
+            writer.write(builder.toString());
         } catch (IOException e) {
             throw new UncheckedImplerException(e.getMessage());
         }
@@ -591,7 +595,7 @@ public class Implementor implements Impler, JarImpler {
      * Creates vararg type
      * @param arrayType type to create vararg for
      * @param declaringClass class, in which method was declared
-     * @return vararg for given type T[] -> T...
+     * @return vararg for given type T[] -&gt; T...
      */
     private String getVarArgsType(final Type arrayType, final Class<?> declaringClass) {
         return (arrayType instanceof GenericArrayType
@@ -673,7 +677,7 @@ public class Implementor implements Impler, JarImpler {
     }
 
     /**
-     * Wrapper class for class {@link java.lang.reflect.Method} where return type does not matter for equals
+     * Wrapper class for class {@link Method} where return type does not matter for equals
      */
     private static class MethodWrapper {
         /**
@@ -730,7 +734,7 @@ public class Implementor implements Impler, JarImpler {
     }
 
     /**
-     * Wrapper for {@link java.lang.reflect.Type} where with type lies class in which it was declared
+     * Wrapper for {@link Type} where with type lies class in which it was declared
      */
     private static class TypeParameter {
         /**
@@ -782,7 +786,7 @@ public class Implementor implements Impler, JarImpler {
     }
 
     /**
-     * Unchecked Exception for Implementor class
+     * Unchecked Exception for info.kgeorgiy.ja.sysoev.implementor.Implementor class
      */
     private static class UncheckedImplerException extends RuntimeException {
         public UncheckedImplerException(final String message) {
@@ -791,13 +795,13 @@ public class Implementor implements Impler, JarImpler {
     }
 
     /**
-     * Wrapper class for {@link java.io.OutputStream} used to write created class
+     * Wrapper class for {@link OutputStream} used to write created class
      */
-    private static class ImplementorOutputStream implements AutoCloseable {
+    private static class ImplementorWriter implements AutoCloseable {
         /**
          * Stream to write in
          */
-        private final OutputStream stream;
+        private final Writer writer;
         /**
          * Path of the written class
          */
@@ -808,8 +812,8 @@ public class Implementor implements Impler, JarImpler {
          * @param stream stream to wrap
          * @param path path of the future file
          */
-        private ImplementorOutputStream(final OutputStream stream, final Path path) {
-            this.stream = stream;
+        private ImplementorWriter(final Writer stream, final Path path) {
+            this.writer = stream;
             this.path = path;
         }
 
@@ -826,7 +830,7 @@ public class Implementor implements Impler, JarImpler {
          * @throws IOException if unable to write
          */
         private void write(final String string) throws IOException {
-            stream.write(string.getBytes(StandardCharsets.UTF_8));
+            writer.write(string);
         }
 
         /**
@@ -844,7 +848,38 @@ public class Implementor implements Impler, JarImpler {
          */
         @Override
         public void close() throws IOException {
-            stream.close();
+            writer.close();
+        }
+    }
+
+    /**
+     * Write that able to write in unicode
+     */
+    private static class ImplementorUnicodeWriter extends FilterWriter {
+
+        public ImplementorUnicodeWriter(Writer out) {
+            super(out);
+        }
+
+        @Override
+        public void write(int c) throws IOException {
+            if (c < 128) {
+                out.write(c);
+            } else {
+                out.write(String.format("\\u%04X", c));
+            }
+        }
+
+        @Override
+        public void write(String s, int offset, int length) throws IOException {
+            for (int i = offset; i < offset + length; i++) {
+                write(s.charAt(i));
+            }
+        }
+
+        @Override
+        public void write(String str) throws IOException {
+            write(str, 0, str.length());
         }
     }
 
@@ -852,14 +887,15 @@ public class Implementor implements Impler, JarImpler {
      * Interface with one getter
      */
     @FunctionalInterface
-    private interface OutputStreamGetter {
+    private interface OutputWriterGetter {
         /**
          * Function to get new implementor output stream
          * @param clazz class to write
          * @param path path of the to use to write
          * @return new output stream
+         * @throws IOException if unable to get stream
          */
-        ImplementorOutputStream getStream(Class<?> clazz, Path path) throws IOException;
+        ImplementorWriter getStream(Class<?> clazz, Path path) throws IOException;
     }
 
     /* JAR IMPLEMENTOR */
@@ -886,7 +922,7 @@ public class Implementor implements Impler, JarImpler {
     /**
      * try to get path
      * @param path path to get
-     * @return {@link java.nio.file.Path} for given path
+     * @return {@link Path} for given path
      * @throws ImplerException if not able to create path
      */
     private static Path getPath(final String path) throws ImplerException {
@@ -915,8 +951,8 @@ public class Implementor implements Impler, JarImpler {
     public void implementJar(final Class<?> clazz, final Path jarFile) throws ImplerException {
         implement(clazz, TEMP_ROOT, Implementor::getBufferedOutputStream);
         try (JarOutputStream jarOutputStream = getJarOutputStream(clazz, jarFile)) {
-            String javaTempFile = outputStream.getPath().toString();
-            compile(javaTempFile);
+            String javaTempFile = writer.getPath().toString();
+            compile(javaTempFile, getClassPath(clazz));
             copyToJar(jarOutputStream, toClassFile(javaTempFile));
             jarOutputStream.closeEntry();
             clean();
@@ -934,13 +970,13 @@ public class Implementor implements Impler, JarImpler {
      * Create Jar output stream
      * @param clazz class to put into jar
      * @param jarPath path of the jar
-     * @return {@link java.util.jar.JarOutputStream} if able to create
+     * @return {@link JarOutputStream} if able to create
      * @throws IOException if unable to create
      */
     private static JarOutputStream getJarOutputStream(final Class<?> clazz, final Path jarPath) throws IOException {
         JarOutputStream jarOutputStream = new JarOutputStream(new FileOutputStream(jarPath.toFile()));
         jarOutputStream.putNextEntry(
-                new JarEntry(getImplClassFullName(clazz, "class").replace("\\", "/"))
+                new JarEntry(getImplClassFullName(clazz, "class").replace(File.separator, "/"))
         );
         return jarOutputStream;
     }
@@ -950,11 +986,30 @@ public class Implementor implements Impler, JarImpler {
      * @param path path for the .java file
      * @throws ImplerException if not able to compile
      */
-    private static void compile(final String path) throws ImplerException {
+    private static void compile(final String path, final String classpath) throws ImplerException {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-        int exitCode = compiler.run(null, null, null, path);
+        if (compiler == null) {
+            throw new ImplerException("Unable to find compiler");
+        }
+        int exitCode = compiler.run(null, null, null,
+                path, "-cp", TEMP_ROOT.toString() + File.pathSeparator + classpath
+        );
         if (exitCode != 0) {
             throw new ImplerException("Unable to compile temp jar class");
+        }
+    }
+
+    /**
+     * Finds classpath of the given class
+     * @param clazz class to find classpath of
+     * @return classpath for given class
+     * @throws ImplerException if unable to return classpath
+     */
+    private static String getClassPath(final Class<?> clazz) throws ImplerException {
+        try {
+            return Path.of(clazz.getProtectionDomain().getCodeSource().getLocation().toURI()).toString();
+        } catch (final URISyntaxException e) {
+            throw new ImplerException("Unable to locate class");
         }
     }
 

@@ -1,3 +1,5 @@
+package info.kgeorgiy.ja.sysoev.implementor;
+
 import java.nio.file.Path;
 
 /**

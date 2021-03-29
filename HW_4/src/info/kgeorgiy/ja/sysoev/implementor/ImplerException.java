@@ -1,3 +1,5 @@
+package info.kgeorgiy.ja.sysoev.implementor;
+
 /**
  * Thrown by {@link Impler} when an error occurred.
  *
