@@ -14,48 +14,34 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+/**
+ * Implementor class is able to create new .java and .jar files
+ */
 public class Implementor implements Impler, JarImpler {
+    /**
+     * System dependent new line character
+     */
     private static final String nl = String.format("%n");
+    /**
+     * Double system dependent new line character
+     */
     private static final String nl2 = nl + nl;
+    /**
+     * TypesMap contains all type substitutions in inheritance tree for given class
+     */
     private final Map<TypeParameter, TypeParameter> typesMap = new HashMap<>();
+    /**
+     * Output Stream to write class implementation
+     */
     private ImplementorOutputStream outputStream;
 
-    public void run(final String[] args) {
-        if (args.length != 2) {
-            System.out.println("Wrong Number of arguments");
-            return;
-        }
-        try {
-            Class<?> clazz = getClass(args[0]);
-            Path path = getPath(args[1]);
-            implement(clazz, path);
-        } catch (ImplerException e) {
-            System.out.println(e.getMessage());
-        }
-    }
-
-    private static Path getPath(final String path) throws ImplerException {
-        try {
-            return Path.of(path);
-        } catch (InvalidPathException e) {
-            throw new ImplerException("Wrong path: " + path);
-        }
-    }
-
-    private static Class<?> getClass(final String clazz) throws ImplerException {
-        try {
-            return Class.forName(clazz);
-        } catch (ClassNotFoundException e) {
-            throw new ImplerException("Wrong class name: " + clazz);
-        }
-    }
-
-    public void implement(final Path path, final Class<?>... clazzes) throws ImplerException {
-        for (Class<?> clazz : clazzes) {
-            implement(clazz, path);
-        }
-    }
-
+    /**
+     * Creates buffered output stream to write implementation to
+     * @param clazz class to implement
+     * @param root root path for class
+     * @return new {@link ImplementorOutputStream} for given class
+     * @throws IOException if unable to create output file
+     */
     private static ImplementorOutputStream getBufferedOutputStream(final Class<?> clazz, final Path root) throws IOException {
         Path path = createOutputFile(root, getImplClassFullName(clazz));
         return new ImplementorOutputStream(
@@ -71,6 +57,14 @@ public class Implementor implements Impler, JarImpler {
         implement(token, root, Implementor::getBufferedOutputStream);
     }
 
+    /**
+     * Implements given class if is able to
+     *
+     * @param clazz class to implement
+     * @param path path to pass to getter
+     * @param getter function to get stream to write implementation to
+     * @throws ImplerException if unable to implement clazz
+     */
     public void implement(final Class<?> clazz, final Path path, final OutputStreamGetter getter) throws ImplerException {
         if (clazz == null) {
             throw new ImplerException("Token cannot be null");
@@ -97,6 +91,12 @@ public class Implementor implements Impler, JarImpler {
         }
     }
 
+    /**
+     * Generates java code for new implementation
+     *
+     * @param clazz class to implement
+     * @throws UncheckedImplerException if unable to implement
+     */
     private void createClass(final Class<?> clazz) {
         try {
             if (Modifier.isFinal(clazz.getModifiers())) {
@@ -133,6 +133,11 @@ public class Implementor implements Impler, JarImpler {
         }
     }
 
+    /**
+     * Walks inheritance tree for given class and makes types substitution map
+     *
+     * @param clazz class to implement
+     */
     private void createTypesMap(final Class<?> clazz) {
         Class<?> superClass = createTypesMap(clazz, clazz.getGenericSuperclass());
         if (superClass != null) {
@@ -146,6 +151,13 @@ public class Implementor implements Impler, JarImpler {
         }
     }
 
+    /**
+     * Creates entries for type substitution for class and its superclass if is able to
+     *
+     * @param clazz class to create entries for
+     * @param superType class's parent type
+     * @return parent if entries were created
+     */
     private Class<?> createTypesMap(final Class<?> clazz, final Type superType) {
         if (superType instanceof ParameterizedType) {
             ParameterizedType parameterizedType = (ParameterizedType) superType;
@@ -164,18 +176,37 @@ public class Implementor implements Impler, JarImpler {
         return null;
     }
 
+    /**
+     * Creates type parameters with bounds relatively to declaring class
+     * @param typeVariables array of types to work with
+     * @param declaringClass class, in which parameters were declared
+     * @return type parameters in form &lt;T1, T2...&gt;
+     */
     private String createFullTypeParameters(final TypeVariable<?>[] typeVariables, final Class<?> declaringClass) {
         return createTypeParameters(typeVariables, this::createFullTypeParameter, declaringClass);
     }
 
-    private String createTypeParameters(
+    /**
+     * Creates type parameters with bounds ignoring declaring class
+     * @param typeVariables array of types to work with
+     * @param converter converts type into java code (string)
+     * @return type parameters in form &lt;T1, T2...&gt;
+     */
+    private static String createTypeParameters(
             final TypeVariable<?>[] typeVariables,
             final Function<TypeVariable<?>, String> converter
     ) {
         return createTypeParameters(typeVariables, (t, ignored) -> converter.apply(t), null);
     }
 
-    private String createTypeParameters(
+    /**
+     * Creates type parameters with bounds relatively to declaring class
+     * @param typeVariables array of types to work with
+     * @param converter converts type into java code (string) relatively to declaring class
+     * @param declaringClass class, in which parameters were declared
+     * @return type parameters in form &lt;T1, T2...&gt;
+     */
+    private static String createTypeParameters(
             final TypeVariable<?>[] typeVariables,
             final BiFunction<TypeVariable<?>, Class<?>, String> converter,
             final Class<?> declaringClass
@@ -184,10 +215,21 @@ public class Implementor implements Impler, JarImpler {
                 + join(Arrays.stream(typeVariables).map(t -> converter.apply(t, declaringClass))) + ">";
     }
 
+    /**
+     * Creates one full type parameter relatively to declaring class
+     * @param variable variable to work with
+     * @param declaringClass class, in which variable was declared
+     * @return full type parameter: T extends E1 & E2 ...
+     */
     private String createFullTypeParameter(final TypeVariable<?> variable, final Class<?> declaringClass) {
         return getFullTypeDeclarationUpper(variable.getTypeName(), variable.getBounds(), declaringClass);
     }
 
+    /**
+     * Create all constructors for given class
+     * @param clazz class to implement
+     * @param className name for constructors
+     */
     private void createConstructors(
             final Class<?> clazz,
             final String className
@@ -219,14 +261,28 @@ public class Implementor implements Impler, JarImpler {
         }
     }
 
+    /**
+     * Creates super statement for constructor
+     * @param n number of args
+     * @return super(arg0, arg1,... argn)
+     */
     private static String getSuperStatement(int n) {
         return "super(" + join(IntStream.range(0, n).mapToObj(i -> "arg" + i)) + ");";
     }
 
+    /**
+     * Create all methods for given class
+     * @param clazz class to implement
+     */
     private void createMethods(final Class<?> clazz) {
         createMethods(getAllAccessibleMethods(clazz));
     }
 
+    /**
+     * Returns all methods, that can be overriden for given class
+     * @param clazz to search methods in
+     * @return {@link Stream} of {@link Method} that can be overriden
+     */
     private static Stream<Method> getAllAccessibleMethods(final Class<?> clazz) {
         Package actualPackage = clazz.getPackage();
         Set<MethodWrapper> wrappers = new HashSet<>();
@@ -254,6 +310,13 @@ public class Implementor implements Impler, JarImpler {
         return wrappers.stream().map(MethodWrapper::getMethod);
     }
 
+    /**
+     * Adds method wrapped in {@link MethodWrapper} to set if method is valid
+     * @param methods set of methods to add to
+     * @param forbidden set of forbidden methods
+     * @param newMethod method to add
+     * @param flags method modifiers
+     */
     private static void addMethod(
             final Set<MethodWrapper> methods,
             final Set<MethodWrapper> forbidden,
@@ -270,6 +333,10 @@ public class Implementor implements Impler, JarImpler {
         }
     }
 
+    /**
+     * Creates methods given as {@link Stream}
+     * @param methods methods to add to implementation
+     */
     private void createMethods(final Stream<Method> methods) {
         methods.forEach(method -> {
             Class<?> declaringClass = method.getDeclaringClass();
@@ -288,6 +355,12 @@ public class Implementor implements Impler, JarImpler {
         });
     }
 
+    /**
+     * Checks if {@link Executable}
+     * ({@link Method} or {@link Constructor}) is forbidden to implement
+     * @param flags modifiers of executable
+     * @return true if executable is forbidden, else false
+     */
     private static boolean forbiddenExecutable(int flags) {
         return Modifier.isFinal(flags)
                 || Modifier.isStatic(flags)
@@ -295,6 +368,15 @@ public class Implementor implements Impler, JarImpler {
                 || Modifier.isPrivate(flags);
     }
 
+    /**
+     * Creates one full type parameter with bounds relatively to declaring class
+     *
+     * @param name of the variable to work with
+     * @param word extends or super
+     * @param bounds type's bounds
+     * @param declaringClass class, in which variable was declared
+     * @return full type parameter: T extends/super E1 & E2 ...
+     */
     private String getFullTypeDeclaration(
             final String name,
             final String word,
@@ -305,14 +387,36 @@ public class Implementor implements Impler, JarImpler {
                 : " " + word + " " + join(Arrays.stream(bounds).map(t -> getType(t, declaringClass)), " & "));
     }
 
+    /**
+     * Creates one full type parameter with upper bounds relatively to declaring class
+     *
+     * @param name of the variable to work with
+     * @param bounds type's bounds
+     * @param declaringClass class, in which variable was declared
+     * @return full type parameter: T extends E1 & E2 ...
+     */
     private String getFullTypeDeclarationUpper(final String name, final Type[] bounds, final Class<?> declaringClass) {
         return getFullTypeDeclaration(name, "extends", bounds, declaringClass);
     }
 
+    /**
+     * Creates one full wildcard relatively to declaring class
+     *
+     * @param bounds type's bounds
+     * @param declaringClass class, in which wildcard was declared
+     * @return full type parameter: ? super E1 & E2 ...
+     */
     private String getFullTypeDeclarationLower(final Type[] bounds, final Class<?> declaringClass) {
         return getFullTypeDeclaration("?", "super", bounds, declaringClass);
     }
 
+    /**
+     * Returns actual generic type (with all substitutions)
+     *
+     * @param type type to work with
+     * @param declaringClass class, in which type was declared
+     * @return String representation of the actual type
+     */
     private String getType(final Type type, final Class<?> declaringClass) {
         if (type instanceof GenericArrayType) {
             GenericArrayType arrayType = (GenericArrayType) type;
@@ -342,6 +446,13 @@ public class Implementor implements Impler, JarImpler {
         return substituteType(type, declaringClass);
     }
 
+    /**
+     * Substitutes type from typesMap
+     *
+     * @param type type to work with
+     * @param declaringClass class, in which type was declared
+     * @return String representation of the actual type
+     */
     private String substituteType(final Type type, final Class<?> declaringClass) {
         TypeParameter parameter = new TypeParameter(type, declaringClass);
         while (true) {
@@ -353,6 +464,12 @@ public class Implementor implements Impler, JarImpler {
         }
     }
 
+    /**
+     * Gets full member class name if it is not private
+     * @param clazz class to get name
+     * @return full member class name
+     * @throws UncheckedImplerException if inner class at some level is private
+     */
     private static String getMemberClassName(final Class<?> clazz) {
         if (!clazz.isMemberClass()) {
             return clazz.getName();
@@ -563,6 +680,37 @@ public class Implementor implements Impler, JarImpler {
 
     /* JAR IMPLEMENTOR */
 
+    public static void main(final String[] args) {
+        if (args.length != 2) {
+            System.out.println("Wrong Number of arguments");
+            return;
+        }
+        try {
+            Implementor implementor = new Implementor();
+            Class<?> clazz = getClass(args[0]);
+            Path path = getPath(args[1]);
+            implementor.implementJar(clazz, path);
+        } catch (ImplerException e) {
+            System.out.println(e.getMessage());
+        }
+    }
+
+    private static Path getPath(final String path) throws ImplerException {
+        try {
+            return Path.of(path);
+        } catch (InvalidPathException e) {
+            throw new ImplerException("Wrong path: " + path);
+        }
+    }
+
+    private static Class<?> getClass(final String clazz) throws ImplerException {
+        try {
+            return Class.forName(clazz);
+        } catch (ClassNotFoundException e) {
+            throw new ImplerException("Wrong class name: " + clazz);
+        }
+    }
+
     @Override
     public void implementJar(final Class<?> clazz, final Path jarFile) throws ImplerException {
         implement(clazz, TEMP_ROOT, Implementor::getBufferedOutputStream);
@@ -573,6 +721,11 @@ public class Implementor implements Impler, JarImpler {
             jarOutputStream.closeEntry();
             clean();
         } catch (IOException e) {
+            try {
+                Files.delete(jarFile);
+            } catch (IOException e2) {
+                throw new ImplerException("Unable to delete jar file after error occurred:\n" + e2.getMessage());
+            }
             throw new ImplerException("Unable to create jar file due to error: " + e.getMessage());
         }
     }
