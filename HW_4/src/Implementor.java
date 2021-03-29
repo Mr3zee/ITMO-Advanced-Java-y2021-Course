@@ -120,7 +120,7 @@ public class Implementor implements Impler, JarImpler {
                     .append(createTypeParameters(typeParameters, TypeVariable::getName))
                     .append("{").append(nl2);
 
-            outputStream.write(builder.toString());
+            outputStream.write(builder);
 
             if (!clazz.isInterface()) {
                 createConstructors(clazz, className);
@@ -281,7 +281,7 @@ public class Implementor implements Impler, JarImpler {
     /**
      * Returns all methods, that can be overriden for given class
      * @param clazz to search methods in
-     * @return {@link Stream} of {@link Method} that can be overriden
+     * @return {@link java.util.stream.Stream} of {@link java.lang.reflect.Method} that can be overriden
      */
     private static Stream<Method> getAllAccessibleMethods(final Class<?> clazz) {
         Package actualPackage = clazz.getPackage();
@@ -334,7 +334,7 @@ public class Implementor implements Impler, JarImpler {
     }
 
     /**
-     * Creates methods given as {@link Stream}
+     * Creates methods given as {@link java.util.stream.Stream}
      * @param methods methods to add to implementation
      */
     private void createMethods(final Stream<Method> methods) {
@@ -356,8 +356,8 @@ public class Implementor implements Impler, JarImpler {
     }
 
     /**
-     * Checks if {@link Executable}
-     * ({@link Method} or {@link Constructor}) is forbidden to implement
+     * Checks if {@link java.lang.reflect.Executable}
+     * ({@link java.lang.reflect.Method} or {@link java.lang.reflect.Constructor}) is forbidden to implement
      * @param flags modifiers of executable
      * @return true if executable is forbidden, else false
      */
@@ -482,20 +482,54 @@ public class Implementor implements Impler, JarImpler {
         return getMemberClassName(clazz.getDeclaringClass()) + "." + clazz.getSimpleName();
     }
 
+    /**
+     * Creates return statement with default return value
+     *
+     * null - if not primitive
+     * false - if boolean
+     * 0 - if primitive
+     * nothing if void
+     * @param method method to get return value for
+     * @return string return statement
+     */
     private String getReturnStatement(final Method method) {
         Class<?> type = method.getReturnType();
         return type.isAssignableFrom(void.class) ? "" : "return " +
                 (type.isPrimitive() ? (type.isAssignableFrom(boolean.class) ? "false" : "0") : null) + ";";
     }
 
+    /**
+     * Creates string modifiers
+     * @param flags modifiers
+     * @return string containing all modifiers
+     */
     private static String getModifier(int flags) {
         return Modifier.toString(flags & ~Modifier.ABSTRACT & ~Modifier.TRANSIENT);
     }
 
+    /**
+     * Adds whitespace after string if it is not empty
+     * @param string string to work with
+     * @return string + " " if string is not empty, else empty string
+     */
     private static String addWhitespaceIfNotEmpty(String string) {
         return string + (string.equals("") ? "" : " ");
     }
 
+    /**
+     * Creates string representation of a method/constructor
+     * @param genericTypeParameters list of type parameters
+     * @param name method's name
+     * @param args method's args (types)
+     * @param isVarArgs if method is vararg
+     * @param returnType method's return type
+     * @param body method's body
+     * @param exceptions method's exceptions (types)
+     * @param flags method's modifiers
+     * @param isOverride if method needs to be overriden
+     * @param declaringClass class, in which method was declared
+     * @throws UncheckedImplerException if unable to write to output stream
+     */
     private void addMethod(
             final String genericTypeParameters,
             final String name,
@@ -513,7 +547,7 @@ public class Implementor implements Impler, JarImpler {
                 .append("\t").append(addWhitespaceIfNotEmpty(getModifier(flags)))
                 .append(addWhitespaceIfNotEmpty(genericTypeParameters))
                 .append(addWhitespaceIfNotEmpty(returnType)).append(name).append("(")
-                .append(getStringParameters(args, isVarArgs, declaringClass)).append(") ")
+                .append(getMethodParameters(args, isVarArgs, declaringClass)).append(") ")
                 .append(addWhitespaceIfNotEmpty(getExceptionSignature(exceptions, declaringClass)))
                 .append("{ ").append(addWhitespaceIfNotEmpty(body)).append("}")
                 .append(nl2);
@@ -524,13 +558,26 @@ public class Implementor implements Impler, JarImpler {
         }
     }
 
+    /**
+     * Creates exception signature for method
+     * @param exceptions types of exceptions
+     * @param declaringClass class, in which method was declared
+     * @return exception signature for given types
+     */
     private String getExceptionSignature(final Type[] exceptions, final Class<?> declaringClass) {
         return exceptions.length == 0 ? "" : "throws "
                 + join(Arrays.stream(exceptions)
                 .map(t -> getType(t, declaringClass)));
     }
 
-    private String getStringParameters(final Type[] args, boolean isVarArgs, final Class<?> declaringClass) {
+    /**
+     * Creates method's parameters
+     * @param args array of parameters' types
+     * @param isVarArgs if method is vararg
+     * @param declaringClass class, in which method was declared
+     * @return parameters in form of T1 arg0, T2 arg1, ... Tn argn
+     */
+    private String getMethodParameters(final Type[] args, boolean isVarArgs, final Class<?> declaringClass) {
         return join(
                 IntStream.range(0, args.length)
                         .mapToObj(i -> (isVarArgs && i == args.length - 1
@@ -540,6 +587,12 @@ public class Implementor implements Impler, JarImpler {
         );
     }
 
+    /**
+     * Creates vararg type
+     * @param arrayType type to create vararg for
+     * @param declaringClass class, in which method was declared
+     * @return vararg for given type T[] -> T...
+     */
     private String getVarArgsType(final Type arrayType, final Class<?> declaringClass) {
         return (arrayType instanceof GenericArrayType
                 ? getType(((GenericArrayType) arrayType).getGenericComponentType(), declaringClass)
@@ -547,14 +600,32 @@ public class Implementor implements Impler, JarImpler {
         ) + "...";
     }
 
+    /**
+     * Creates new name for class with .java extension
+     * @param clazz class to create new name for
+     * @return NameImpl.java
+     */
     private static String getImplClassFullName(final Class<?> clazz) {
-        return getImplClassFullName(clazz, ".java");
+        return getImplClassFullName(clazz, "java");
     }
 
+    /**
+     * Creates new name for class with given extension
+     * @param clazz class to create new name for
+     * @param extension extension of the new file
+     * @return NameImpl.&lt;extension&gt;
+     */
     private static String getImplClassFullName(final Class<?> clazz, final String extension) {
-        return (clazz.getPackageName() + "." + clazz.getSimpleName()).replace('.', '\\') + "Impl" + extension;
+        return (clazz.getPackageName() + "." + clazz.getSimpleName()).replace('.', '\\') + "Impl." + extension;
     }
 
+    /**
+     * Creates output file for given root and class
+     * @param root root for new file
+     * @param classFullName class to implement
+     * @return path to new file
+     * @throws IOException unable to create file
+     */
     private static Path createOutputFile(final Path root, final String classFullName) throws IOException {
         if (root == null) {
             throw new IOException("Root cannot be null");
@@ -562,6 +633,12 @@ public class Implementor implements Impler, JarImpler {
         return createFile(Path.of(root.toString(), classFullName));
     }
 
+    /**
+     * Creates file for given path
+     * @param file file to create
+     * @return path to new file
+     * @throws IOException if nor able to create file
+     */
     private static Path createFile(final Path file) throws IOException {
         if (!Files.exists(file)) {
             final Path parent = file.getParent();
@@ -576,29 +653,64 @@ public class Implementor implements Impler, JarImpler {
         return file;
     }
 
+    /**
+     * joins stream with given delimiter
+     * @param stream stream to join
+     * @param delimiter for joining
+     * @return joined stream
+     */
     private static String join(final Stream<String> stream, final String delimiter) {
         return stream.collect(Collectors.joining(delimiter));
     }
 
+    /**
+     * joins stream with ", "
+     * @param stream stream to join
+     * @return joined stream
+     */
     private static String join(final Stream<String> stream) {
         return join(stream, ", ");
     }
 
+    /**
+     * Wrapper class for class {@link java.lang.reflect.Method} where return type does not matter for equals
+     */
     private static class MethodWrapper {
+        /**
+         * Wrapped method
+         */
         private final Method method;
+        /**
+         * Method's name
+         */
         private final String name;
+        /**
+         * Method's parameters' types
+         */
         private final Type[] types;
 
+        /**
+         * Wraps method
+         * @param method method to wrap
+         */
         public MethodWrapper(final Method method) {
             this.method = method;
             this.name = method.getName();
             this.types = method.getGenericParameterTypes();
         }
 
+        /**
+         * @return wrapped method
+         */
         public Method getMethod() {
             return method;
         }
 
+        /**
+         * Equals for to methods, where return type does not matter
+         * @param o object to compare with
+         * @return if object is equal to this
+         */
         @Override
         public boolean equals(final Object o) {
             if (this == o) return true;
@@ -607,25 +719,51 @@ public class Implementor implements Impler, JarImpler {
             return name.equals(that.name) && Arrays.equals(types, that.types);
         }
 
+        /**
+         * Hash code for to methods, where return type does not matter
+         * @return hash code for method
+         */
         @Override
         public int hashCode() {
             return 53 * name.hashCode() + Arrays.hashCode(types);
         }
     }
 
+    /**
+     * Wrapper for {@link java.lang.reflect.Type} where with type lies class in which it was declared
+     */
     private static class TypeParameter {
+        /**
+         * Wrapper type
+         */
         private final Type type;
+        /**
+         * Declaring class
+         */
         private final Class<?> clazz;
 
+        /**
+         * Wraps type
+         * @param type type to wrap
+         * @param clazz declaring class for type
+         */
         private TypeParameter(final Type type, final Class<?> clazz) {
             this.type = type;
             this.clazz = clazz;
         }
 
+        /**
+         * @return wrapper type
+         */
         public Type getType() {
             return type;
         }
 
+        /**
+         * Two types are equal if they are equal and their declaring class too
+         * @param o object to compare with
+         * @return if objects are equal
+         */
         @Override
         public boolean equals(final Object o) {
             if (this == o) return true;
@@ -634,52 +772,102 @@ public class Implementor implements Impler, JarImpler {
             return Objects.equals(type, that.type) && Objects.equals(clazz, that.clazz);
         }
 
+        /**
+         * @return hash for TypeParameter
+         */
         @Override
         public int hashCode() {
             return Objects.hash(type, clazz);
         }
     }
 
+    /**
+     * Unchecked Exception for Implementor class
+     */
     private static class UncheckedImplerException extends RuntimeException {
         public UncheckedImplerException(final String message) {
             super(message);
         }
     }
 
+    /**
+     * Wrapper class for {@link java.io.OutputStream} used to write created class
+     */
     private static class ImplementorOutputStream implements AutoCloseable {
+        /**
+         * Stream to write in
+         */
         private final OutputStream stream;
+        /**
+         * Path of the written class
+         */
         private final Path path;
 
+        /**
+         * Creates wrapper
+         * @param stream stream to wrap
+         * @param path path of the future file
+         */
         private ImplementorOutputStream(final OutputStream stream, final Path path) {
             this.stream = stream;
             this.path = path;
         }
 
+        /**
+         * @return path of the written class
+         */
         public Path getPath() {
             return path;
         }
 
+        /**
+         * Writes string to output stream
+         * @param string string to write it
+         * @throws IOException if unable to write
+         */
         private void write(final String string) throws IOException {
             stream.write(string.getBytes(StandardCharsets.UTF_8));
         }
 
+        /**
+         * Writes builder's string to output stream
+         * @param builder to write string from
+         * @throws IOException if unable to write
+         */
         private void write(final StringBuilder builder) throws IOException {
             write(builder.toString());
         }
 
+        /**
+         * Close output stream
+         * @throws IOException if unable to close
+         */
         @Override
         public void close() throws IOException {
             stream.close();
         }
     }
 
+    /**
+     * Interface with one getter
+     */
     @FunctionalInterface
     private interface OutputStreamGetter {
+        /**
+         * Function to get new implementor output stream
+         * @param clazz class to write
+         * @param path path of the to use to write
+         * @return new output stream
+         */
         ImplementorOutputStream getStream(Class<?> clazz, Path path) throws IOException;
     }
 
     /* JAR IMPLEMENTOR */
 
+    /**
+     * Launch {@link Implementor#implementJar} from cli
+     * @param args cli args
+     */
     public static void main(final String[] args) {
         if (args.length != 2) {
             System.out.println("Wrong Number of arguments");
@@ -695,6 +883,12 @@ public class Implementor implements Impler, JarImpler {
         }
     }
 
+    /**
+     * try to get path
+     * @param path path to get
+     * @return {@link java.nio.file.Path} for given path
+     * @throws ImplerException if not able to create path
+     */
     private static Path getPath(final String path) throws ImplerException {
         try {
             return Path.of(path);
@@ -703,6 +897,12 @@ public class Implementor implements Impler, JarImpler {
         }
     }
 
+    /**
+     * Loads given class
+     * @param clazz class to load
+     * @return type token for given class
+     * @throws ImplerException if not able to load (class not found)
+     */
     private static Class<?> getClass(final String clazz) throws ImplerException {
         try {
             return Class.forName(clazz);
@@ -717,7 +917,7 @@ public class Implementor implements Impler, JarImpler {
         try (JarOutputStream jarOutputStream = getJarOutputStream(clazz, jarFile)) {
             String javaTempFile = outputStream.getPath().toString();
             compile(javaTempFile);
-            copyToJar(jarOutputStream, javaTempFile);
+            copyToJar(jarOutputStream, toClassFile(javaTempFile));
             jarOutputStream.closeEntry();
             clean();
         } catch (IOException e) {
@@ -730,14 +930,26 @@ public class Implementor implements Impler, JarImpler {
         }
     }
 
+    /**
+     * Create Jar output stream
+     * @param clazz class to put into jar
+     * @param jarPath path of the jar
+     * @return {@link java.util.jar.JarOutputStream} if able to create
+     * @throws IOException if unable to create
+     */
     private static JarOutputStream getJarOutputStream(final Class<?> clazz, final Path jarPath) throws IOException {
         JarOutputStream jarOutputStream = new JarOutputStream(new FileOutputStream(jarPath.toFile()));
         jarOutputStream.putNextEntry(
-                new JarEntry(getImplClassFullName(clazz, ".class").replace("\\", "/"))
+                new JarEntry(getImplClassFullName(clazz, "class").replace("\\", "/"))
         );
         return jarOutputStream;
     }
 
+    /**
+     * Compiles class
+     * @param path path for the .java file
+     * @throws ImplerException if not able to compile
+     */
     private static void compile(final String path) throws ImplerException {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         int exitCode = compiler.run(null, null, null, path);
@@ -746,18 +958,32 @@ public class Implementor implements Impler, JarImpler {
         }
     }
 
-    private static void copyToJar(final JarOutputStream jarOutputStream, final String javaFile) throws ImplerException {
-        try (BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(toClassFile(javaFile)))) {
+    /**
+     * Copies class file to jar file
+     * @param jarOutputStream output stream for jar
+     * @param classFile path for class file
+     * @throws ImplerException if not able to copy
+     */
+    private static void copyToJar(final JarOutputStream jarOutputStream, final String classFile) throws ImplerException {
+        try (BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(classFile))) {
             inputStream.transferTo(jarOutputStream);
         } catch (IOException e) {
             throw new ImplerException("Unable to copy temp .class file to jar: " + e.getMessage());
         }
     }
 
+    /**
+     * Creates class file name for given java file
+     * @param javaFile path of the .java file
+     * @return class file name
+     */
     private static String toClassFile(final String javaFile) {
         return javaFile.substring(0, javaFile.length() - 5) + ".class";
     }
 
+    /**
+     * Visitor to recursively delete directory
+     */
     private static final SimpleFileVisitor<Path> DELETE_VISITOR = new SimpleFileVisitor<>() {
         @Override
         public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
@@ -772,8 +998,15 @@ public class Implementor implements Impler, JarImpler {
         }
     };
 
+    /**
+     * Path for temp files
+     */
     private static final Path TEMP_ROOT = Path.of("temp");
 
+    /**
+     * Deletes all temp files
+     * @throws IOException if not able to delete
+     */
     private static void clean() throws IOException {
         Files.walkFileTree(TEMP_ROOT, DELETE_VISITOR);
     }
