@@ -17,7 +17,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
- * info.kgeorgiy.ja.sysoev.implementor.Implementor class is able to create new .java and .jar files
+ * Implementor class is able to create new .java and .jar files
  * @author Alexander Sysoev, ITMO 2021
  */
 public class Implementor implements Impler, JarImpler {
@@ -287,9 +287,9 @@ public class Implementor implements Impler, JarImpler {
      * @param clazz to search methods in
      * @return {@link Stream} of {@link java.lang.reflect.Method} that can be overriden
      */
-    private static Stream<Method> getAllAccessibleMethods(final Class<?> clazz) {
+    private Stream<Method> getAllAccessibleMethods(final Class<?> clazz) {
         Package actualPackage = clazz.getPackage();
-        Set<MethodWrapper> wrappers = new HashSet<>();
+        Map<MethodWrapper, MethodInfo> wrappers = new HashMap<>();
         Set<MethodWrapper> forbidden = new HashSet<>();
         for (Method method : clazz.getMethods()) {
             addMethod(wrappers, forbidden, method, method.getModifiers());
@@ -311,7 +311,7 @@ public class Implementor implements Impler, JarImpler {
                 }
             }
         }
-        return wrappers.stream().map(MethodWrapper::getMethod);
+        return wrappers.keySet().stream().map(MethodWrapper::getMethod);
     }
 
     /**
@@ -321,8 +321,8 @@ public class Implementor implements Impler, JarImpler {
      * @param newMethod method to add
      * @param flags method modifiers
      */
-    private static void addMethod(
-            final Set<MethodWrapper> methods,
+    private void addMethod(
+            final Map<MethodWrapper, MethodInfo> methods,
             final Set<MethodWrapper> forbidden,
             final Method newMethod,
             int flags
@@ -333,7 +333,13 @@ public class Implementor implements Impler, JarImpler {
             return;
         }
         if (!newMethod.isSynthetic() && !forbidden.contains(wrapper) && !forbiddenExecutable(flags)) {
-            methods.add(wrapper);
+            MethodInfo old = methods.get(wrapper);
+            Type returnType = newMethod.getGenericReturnType();
+            Class<?> declaringClass = newMethod.getDeclaringClass();
+            if (old != null && isAssignableFrom(old.getReturnType(), old.getDeclaringClass(), returnType, declaringClass)) {
+                methods.remove(wrapper);
+            }
+            methods.put(wrapper, new MethodInfo(returnType, declaringClass));
         }
     }
 
@@ -427,7 +433,7 @@ public class Implementor implements Impler, JarImpler {
             return getType(arrayType.getGenericComponentType(), declaringClass) + "[]";
         }
         if (type instanceof TypeVariable) {
-            return substituteType(type, declaringClass);
+            return substituteType(type, declaringClass).getTypeName();
         }
         if (type instanceof WildcardType) {
             WildcardType wildcard = (WildcardType) type;
@@ -447,7 +453,55 @@ public class Implementor implements Impler, JarImpler {
         if (clazz.isMemberClass()) {
             return getMemberClassName(clazz);
         }
-        return substituteType(type, declaringClass);
+        return substituteType(type, declaringClass).getTypeName();
+    }
+
+    /**
+     * Checks if first type is assignable from second
+     * @param t1 first type
+     * @param dc1 first type declaring class
+     * @param t2 second type
+     * @param dc2 second type declaring class
+     * @return true if first can be assigned from second else false
+     */
+    private boolean isAssignableFrom(final Type t1, final Class<?> dc1, final Type t2, final Class<?> dc2) {
+        if (t1 instanceof GenericArrayType && t2 instanceof GenericArrayType) {
+            return isAssignableFrom(
+                    ((GenericArrayType) t1).getGenericComponentType(), dc1,
+                    ((GenericArrayType) t2).getGenericComponentType(), dc2
+            );
+        }
+        if (t1 instanceof WildcardType && t2 instanceof WildcardType) {
+            WildcardType wildcard1 = (WildcardType) t1;
+            WildcardType wildcard2 = (WildcardType) t2;
+            Type[] lowerBounds1 = wildcard1.getLowerBounds();
+            return lowerBounds1.length == 0
+                    ? isAssignableFromArray(wildcard1.getUpperBounds(), dc1, wildcard2.getUpperBounds(), dc2)
+                    : isAssignableFromArray(lowerBounds1, dc1, wildcard2.getLowerBounds(), dc2);
+        }
+        if (t1 instanceof ParameterizedType && t2 instanceof ParameterizedType) {
+            ParameterizedType p1 = (ParameterizedType) t1;
+            ParameterizedType p2 = (ParameterizedType) t2;
+            return isAssignableFrom(p1.getRawType(), dc1, p2.getRawType(), dc2)
+                    && isAssignableFromArray(p1.getActualTypeArguments(), dc1, p2.getActualTypeArguments(), dc2);
+        }
+        return substituteType(t1, dc1).getClass().isAssignableFrom(substituteType(t2, dc2).getClass());
+    }
+
+    /**
+     * Checks if all types from first array are assignable from all types from second array respectively
+     * @param t1 first array of types
+     * @param dc1 first array declaring class
+     * @param t2 second array of types
+     * @param dc2 first array type declaring class
+     * @return true if all first array elements returns true from {@link #isAssignableFrom}
+     *          with paired element from second array
+     */
+    private boolean isAssignableFromArray(final Type[] t1, final Class<?> dc1, final Type[] t2, final Class<?> dc2) {
+        if (t1.length != t2.length) return false;
+        return IntStream.range(0, t1.length).mapToObj(
+                i -> isAssignableFrom(t1[i], dc1, t2[i], dc2)
+        ).reduce(true, (i, acc) -> i && acc);
     }
 
     /**
@@ -457,12 +511,12 @@ public class Implementor implements Impler, JarImpler {
      * @param declaringClass class, in which type was declared
      * @return String representation of the actual type
      */
-    private String substituteType(final Type type, final Class<?> declaringClass) {
+    private Type substituteType(final Type type, final Class<?> declaringClass) {
         TypeParameter parameter = new TypeParameter(type, declaringClass);
         while (true) {
             TypeParameter value = typesMap.get(parameter);
             if (value == null) {
-                return parameter.getType().getTypeName();
+                return parameter.getType();
             }
             parameter = value;
         }
@@ -734,6 +788,43 @@ public class Implementor implements Impler, JarImpler {
     }
 
     /**
+     * Class for two method's parameters
+     */
+    private static class MethodInfo {
+        /**
+         * Method's return type
+         */
+        private final Type returnType;
+
+        /**
+         * Method's declaring class
+         */
+        private final Class<?> declaringClass;
+
+        /**
+         * default constructor
+         */
+        private MethodInfo(Type returnType, Class<?> declaringClass) {
+            this.returnType = returnType;
+            this.declaringClass = declaringClass;
+        }
+
+        /**
+         * @return wrapped method's return type
+         */
+        public Type getReturnType() {
+            return returnType;
+        }
+
+        /**
+         * @return method's declaring class
+         */
+        public Class<?> getDeclaringClass() {
+            return declaringClass;
+        }
+    }
+
+    /**
      * Wrapper for {@link Type} where with type lies class in which it was declared
      */
     private static class TypeParameter {
@@ -786,7 +877,7 @@ public class Implementor implements Impler, JarImpler {
     }
 
     /**
-     * Unchecked Exception for info.kgeorgiy.ja.sysoev.implementor.Implementor class
+     * Unchecked Exception for Implementor class
      */
     private static class UncheckedImplerException extends RuntimeException {
         public UncheckedImplerException(final String message) {
